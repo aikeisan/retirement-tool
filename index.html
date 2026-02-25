@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>退職タイミング意思決定ツール</title>
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --bg-color: #f4f7f6;
+            --card-bg: #ffffff;
+            --danger-color: #e74c3c;
+            --safe-color: #27ae60;
+        }
+        body {
+            font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--primary-color);
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: var(--card-bg);
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        h1 { font-size: 1.4rem; text-align: center; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 20px; }
+        .input-group { margin-bottom: 15px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 0.85rem; }
+        input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 1rem;
+        }
+        button {
+            width: 100%;
+            padding: 15px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: background 0.2s;
+        }
+        button:hover { background-color: #34495e; }
+        #result {
+            margin-top: 25px;
+            padding: 20px;
+            background-color: #fff;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            display: none;
+        }
+        .best-age { font-size: 1.1rem; font-weight: bold; text-align: center; margin-bottom: 20px; padding: 10px; background: #f0fff4; border-radius: 4px; border: 1px solid var(--safe-color); }
+        .score-row { padding: 12px 0; border-bottom: 1px solid #eee; font-size: 0.95rem; }
+        .highlight { color: var(--safe-color); font-weight: bold; }
+        .danger { color: var(--danger-color); font-weight: bold; }
+        .diff-analysis { margin-top: 20px; padding-top: 15px; border-top: 2px dashed #ccc; font-weight: bold; color: #555; text-align: center; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>退職タイミング意思決定ツール</h1>
+    
+    <div class="input-group">
+        <label>生年月日</label>
+        <input type="date" id="birthDate" value="1980-01-01">
+    </div>
+    <div class="input-group">
+        <label>退職金額（万円・手取り前）</label>
+        <input type="number" id="retirementBonus" value="2000">
+    </div>
+    <div class="input-group">
+        <label>年金年額（万円・65歳基準）</label>
+        <input type="number" id="pensionAnnual" value="200">
+    </div>
+    <div class="input-group">
+        <label>年間生活費（万円）</label>
+        <input type="number" id="livingCost" value="300">
+    </div>
+<div class="input-group">
+    <label>運用利回り（想定）</label>
+    <select id="yieldRate">
+        <option value="1.00">0%（運用しない・超安全）</option>
+        <option value="1.02" selected>2%（現実的）</option>
+        <option value="1.04">4%（やや楽観）</option>
+    </select>
+</div>
+    <div class="input-group">
+        <label>現在貯蓄額（万円）</label>
+        <input type="number" id="currentSavings" value="1000">
+    </div>
+    <div class="input-group">
+        <label>住宅ローン残高（万円）</label>
+        <input type="number" id="mortgageBalance" value="0">
+    </div>
+
+    <button onclick="runSimulation()">退職判断を実行する</button>
+
+    <div id="result">
+        <div id="bestMessage" class="best-age"></div>
+        <div id="comparisonList"></div>
+        <div id="diffAnalysis" class="diff-analysis"></div>
+    </div>
+</div>
+
+<script>
+    /** 固定前提 **/
+    const MAX_AGE = 90;
+    const BONUS_TAX_RATE = 0.8;
+
+    /** 1. 年金倍率計算 **/
+    function calculatePensionMultiplier(startAge) {
+        const baseAge = 65;
+        const diff = startAge - baseAge;
+        if (diff === 0) return 1.0;
+        return diff < 0 ? (1 + diff * 0.048) : (1 + diff * 0.084);
+    }
+
+    /** 2. シナリオシミュレーション（資産寿命判定付き） **/
+    function simulateScenario(retireAge, pensionBase) {
+const INVESTMENT_YIELD =
+    parseFloat(document.getElementById('yieldRate').value) || 1.02;
+        const savings = parseFloat(document.getElementById('currentSavings').value) || 0;
+        const bonus = parseFloat(document.getElementById('retirementBonus').value) || 0;
+        const mortgage = parseFloat(document.getElementById('mortgageBalance').value) || 0;
+        const ANNUAL_LIVING_COST = parseFloat(document.getElementById('livingCost').value) || 300;
+
+        // 初期資産
+        let assets = savings + (bonus * BONUS_TAX_RATE) - mortgage;
+        const adjustedPension = pensionBase * calculatePensionMultiplier(retireAge);
+
+        for (let age = retireAge; age < MAX_AGE; age++) {
+            let income = adjustedPension;
+            let balance = income - ANNUAL_LIVING_COST;
+
+            // 資産更新 (資産 + 収支) * 利回り
+            assets = (assets + balance) * INVESTMENT_YIELD;
+
+            // 資産が尽きた判定
+            if (assets <= 0) {
+                return {
+                    finalAssets: 0,
+                    bankruptAge: age
+                };
+            }
+        }
+
+        return {
+            finalAssets: Math.round(assets),
+            bankruptAge: null
+        };
+    }
+
+    function formatMoney(num) {
+        return num.toLocaleString() + "万円";
+    }
+
+    /** 3. メイン実行関数 **/
+    function runSimulation() {
+        const pensionBase = parseFloat(document.getElementById('pensionAnnual').value) || 0;
+        
+        const patterns = [60, 65, 70];
+        const results = patterns.map(age => {
+            const sim = simulateScenario(age, pensionBase);
+            return {
+                age: age,
+                finalAssets: sim.finalAssets,
+                bankruptAge: sim.bankruptAge
+            };
+        });
+
+        // 最も資産が残るパターンを特定
+        const bestResult = results.reduce((prev, current) => 
+            (prev.finalAssets > current.finalAssets) ? prev : current
+        );
+
+        // 最も資産が少ないパターンを特定（差額計算用）
+        const worstResult = results.reduce((prev, current) => 
+            (prev.finalAssets < current.finalAssets) ? prev : current
+        );
+
+        // UI表示
+        const resultDiv = document.getElementById('result');
+        const bestMsg = document.getElementById('bestMessage');
+        const listCont = document.getElementById('comparisonList');
+        const diffAnly = document.getElementById('diffAnalysis');
+
+        resultDiv.style.display = 'block';
+        bestMsg.innerText = `最も安全な退職年齢は ${bestResult.age}歳 です`;
+
+        listCont.innerHTML = '';
+        results.forEach(res => {
+            const isBest = (res.age === bestResult.age);
+            const row = document.createElement('div');
+            row.className = 'score-row';
+            
+            let statusText = "";
+            let statusClass = "";
+
+            if (res.bankruptAge) {
+                statusText = `${res.bankruptAge}歳で資産が尽きます（危険）`;
+                statusClass = "danger";
+            } else {
+                statusText = `90歳まで資産維持（安全：${formatMoney(res.finalAssets)}）`;
+                statusClass = "highlight";
+            }
+
+            const suffix = isBest ? " <span class='highlight'>（最も余裕があります）</span>" : "";
+
+            row.innerHTML = `
+                <strong>${res.age}歳退職</strong> → 
+                <span class="${statusClass}">${statusText}</span>${suffix}
+            `;
+            listCont.appendChild(row);
+        });
+
+        // 差額の表示
+        const diffValue = bestResult.finalAssets - worstResult.finalAssets;
+        diffAnly.innerText = `${bestResult.age}歳まで働くと、${worstResult.age}歳退職より +${formatMoney(diffValue)}改善します`;
+
+        resultDiv.scrollIntoView({ behavior: 'smooth' });
+    }
+</script>
+
+</body>
+</html>
+``` Would you like me to add any specific tax calculation logic or a simple line chart to visualize the asset depletion?
